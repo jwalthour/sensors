@@ -13,12 +13,12 @@
 # import spidev
 
 class Max31855:
-    def Max31855(self, bus=0, device=0):
+    def __init__(self, bus=0, device=0):
         # self._spi = spidev.SpiDev()
         # self._spi.open(bus, device)
         # self._spi.max_speed_hz = 5000
         # self._spi.mode = 0b01
-        pass
+        self._have_reading = False
         
     def take_reading(self):
         """
@@ -27,7 +27,61 @@ class Max31855:
         """
         data = self._spi.xfer2([0, 0, 0, 0])
         self.parse_data(data)
+        self._have_reading = True;
 
+    def thermocouple_temp_c(self):
+        """ Returns the temperature measured at the end of the thermocouple """
+        if(not self._have_reading):
+            raise Exception("Need to take a reading first")
+        else:
+            return self._thermocouple_temp_c
+    def thermocouple_temp_f(self):
+        """ Returns the temperature measured at the end of the thermocouple """
+        return self._c_to_f(self.thermocouple_temp_c())
+    
+    def internal_temp_c(self):
+        """ Returns the temperature of the Max31855 die """
+        if(not self._have_reading):
+            raise Exception("Need to take a reading first")
+        else:
+            return self._internal_temp_c
+    def internal_temp_f(self):
+        """ Returns the temperature of the Max31855 die """
+        return self._c_to_f(self.internal_temp_c())
+    
+    def is_faulted(self):
+        """ 
+        Returns true if the Max31855 reports a problem with 
+        the thermocouple connection 
+        """
+        if(not self._have_reading):
+            raise Exception("Need to take a reading first")
+        else:
+            return self._fault
+    
+    def fault_reason(self):
+        """ 
+        Return a human-readable string describing the 
+        fault reported by the Max31855 
+        """
+        if(not self._have_reading):
+            raise Exception("Need to take a reading first")
+        else:
+            if not self._fault:
+                return "No fault"
+            elif self._short_to_vcc:
+                return "Short to Vcc"
+            elif self._short_to_gnd:
+                return "Short to Gnd"
+            elif self._open_circuit:
+                return "Open circuit"
+            else:
+                return "Unknown"
+    
+    @classmethod
+    def _c_to_f(cls, c_temp):
+        return c_temp * 9.0/5.0 + 32.0
+    
     def _parse_data(self, arr):
         """
         Takes a 4B string from the Max31855 and
