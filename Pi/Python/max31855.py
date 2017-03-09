@@ -6,27 +6,27 @@
 # https://learn.sparkfun.com/tutorials/raspberry-pi-spi-and-i2c-tutorial
 
 # Requires py-spidev, please run the following:
-#    sudo apt-get update sudo apt-get install python-dev 
+#    sudo apt-get update sudo apt-get install python-dev
 #    git clone git://github.com/doceme/py-spidev
 #    cd py-spidev
 #    sudo python setup.py install
-# import spidev
+import spidev
 
 class Max31855:
     def __init__(self, bus=0, device=0):
-        # self._spi = spidev.SpiDev()
-        # self._spi.open(bus, device)
-        # self._spi.max_speed_hz = 5000
-        # self._spi.mode = 0b01
+        self._spi = spidev.SpiDev()
+        self._spi.open(bus, device)
+        self._spi.max_speed_hz = 5000
+        self._spi.mode = 0b01
         self._have_reading = False
-        
+
     def take_reading(self):
         """
         Reads the sensor and stores its measurements internal to this object.
         After calling, use accessors to read data.
         """
         data = self._spi.xfer2([0, 0, 0, 0])
-        self.parse_data(data)
+        self._parse_data(data)
         self._have_reading = True;
 
     def thermocouple_temp_c(self):
@@ -38,7 +38,7 @@ class Max31855:
     def thermocouple_temp_f(self):
         """ Returns the temperature measured at the end of the thermocouple """
         return self._c_to_f(self.thermocouple_temp_c())
-    
+
     def internal_temp_c(self):
         """ Returns the temperature of the Max31855 die """
         if(not self._have_reading):
@@ -48,21 +48,21 @@ class Max31855:
     def internal_temp_f(self):
         """ Returns the temperature of the Max31855 die """
         return self._c_to_f(self.internal_temp_c())
-    
+
     def is_faulted(self):
-        """ 
-        Returns true if the Max31855 reports a problem with 
-        the thermocouple connection 
+        """
+        Returns true if the Max31855 reports a problem with
+        the thermocouple connection
         """
         if(not self._have_reading):
             raise Exception("Need to take a reading first")
         else:
             return self._fault
-    
+
     def fault_reason(self):
-        """ 
-        Return a human-readable string describing the 
-        fault reported by the Max31855 
+        """
+        Return a human-readable string describing the
+        fault reported by the Max31855
         """
         if(not self._have_reading):
             raise Exception("Need to take a reading first")
@@ -77,18 +77,18 @@ class Max31855:
                 return "Open circuit"
             else:
                 return "Unknown"
-    
+
     @classmethod
     def _c_to_f(cls, c_temp):
         return c_temp * 9.0/5.0 + 32.0
-    
+
     def _parse_data(self, arr):
         """
         Takes a 4B string from the Max31855 and
         breaks out its constituents.
         Argument must be an array of 4 byte values.
         """
-        # See datasheet for explanation        
+        # See datasheet for explanation
         first_half = (arr[0]<<8) + arr[1]
         second_half = (arr[2]<<8) + arr[3]
         self._thermocouple_temp_c = ((first_half >> 2) & 0x1fff) * 0.25
@@ -101,5 +101,3 @@ class Max31855:
         self._short_to_vcc = ((second_half & 0x0004) > 0)
         self._short_to_gnd = ((second_half & 0x0002) > 0)
         self._open_circuit = ((second_half & 0x0001) > 0)
-    
-    
