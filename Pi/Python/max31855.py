@@ -17,7 +17,7 @@ class Max31855:
         self._spi = spidev.SpiDev()
         self._spi.open(bus, device)
         self._spi.max_speed_hz = 5000
-        self._spi.mode = 0b01
+        self._spi.mode = 0b00
         self._have_reading = False
 
     def take_reading(self):
@@ -25,7 +25,7 @@ class Max31855:
         Reads the sensor and stores its measurements internal to this object.
         After calling, use accessors to read data.
         """
-        data = self._spi.xfer2([0, 0, 0, 0])
+        data = self._spi.xfer([0xFF, 0xFF, 0xFF, 0xFF])
         self._parse_data(data)
         self._have_reading = True;
 
@@ -89,15 +89,30 @@ class Max31855:
         Argument must be an array of 4 byte values.
         """
         # See datasheet for explanation
+        print(" ".join(["%02X"%b for b in arr]))
         first_half = (arr[0]<<8) + arr[1]
         second_half = (arr[2]<<8) + arr[3]
-        self._thermocouple_temp_c = ((first_half >> 2) & 0x1fff) * 0.25
-        if(((first_half >> 2) & 0x2000) > 0):
-            self._thermocouple_temp_c *= -1
+        unsigned = ((first_half >> 2) & 0x3fff)
+        if(unsigned & 0x2000 > 0):
+                signed = ~unsigned + 1
+                signed *= -1.0
+        else:
+                signed = unsigned
+        print("tc raw = %04x"%signed)
+        self._thermocouple_temp_c = signed * 0.25
+
+        unsigned = ((second_half >> 4) & 0x7ff)
+        if(unsigned & 0x400 > 0):
+                signed = ~unsigned + 1
+                signed *= -1.0
+        else:
+                signed = unsigned
+        print("int raw = %04x"%signed)
         self._internal_temp_c = ((second_half >> 4) & 0x7ff) * 0.0625
-        if(((second_half >> 4) & 0x800) > 0):
-            self._internal_temp_c *= -1
+
         self._fault = ((first_half & 0x0001) > 0)
         self._short_to_vcc = ((second_half & 0x0004) > 0)
         self._short_to_gnd = ((second_half & 0x0002) > 0)
         self._open_circuit = ((second_half & 0x0001) > 0)
+
+
