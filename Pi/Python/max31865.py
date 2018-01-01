@@ -40,10 +40,15 @@ class max31865(object):
 		self.mosiPin = mosiPin
 		self.clkPin = clkPin
 		self.rRefCoeff  = 1.0
+		self.rRefOffset = 0.0
 		self.setupGPIO()
 		
-	def setCal(self, rAt0C = 100.0):
-		self.rRefCoeff = 100.0 / rAt0C
+	def setCal(self, rAt0C = 100.0, rAt100C = 138.51):
+		R0C_IDEAL   = 100.0
+		R100C_IDEAL = 138.51
+		self.rRefCoeff = (R100C_IDEAL - R0C_IDEAL) / (rAt100C - rAt0C)
+		self.rRefOffset = R0C_IDEAL - self.rRefCoeff * rAt0C
+		# print ("m=%f b=%f"%(self.rRefCoeff, self.rRefOffset))
 		
 	def setupGPIO(self):
 		GPIO.setwarnings(False)
@@ -187,7 +192,7 @@ class max31865(object):
 		print "RTD ADC Code: %d" % RTD_ADC_Code
 		Res_RTD = (RTD_ADC_Code * R_REF) / 32768.0 # PT100 Resistance
 		print "PT100 Resistance uncalibrated: %f ohms" % Res_RTD
-		Res_RTD = (RTD_ADC_Code * R_REF * self.rRefCoeff) / 32768.0 # PT100 Resistance
+		Res_RTD = Res_RTD * self.rRefCoeff + self.rRefOffset
 		print "PT100 Resistance calibrated: %f ohms" % Res_RTD
 		#
 		# Callendar-Van Dusen equation
@@ -227,7 +232,7 @@ if __name__ == "__main__":
 	mosiPin = 10
 	clkPin = 11
 	max = max31865.max31865(csPin,misoPin,mosiPin,clkPin)
-	max.setCal(95.104980)
+	max.setCal(95.104980, 127.539062)
 	tempC = max.readTemp()
 	print("Temp is %f degrees C (%f F)"%(tempC, c_to_f(tempC)))
 	GPIO.cleanup()
