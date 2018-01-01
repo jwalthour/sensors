@@ -39,7 +39,11 @@ class max31865(object):
 		self.misoPin = misoPin
 		self.mosiPin = mosiPin
 		self.clkPin = clkPin
+		self.rRefCoeff  = 1.0
 		self.setupGPIO()
+		
+	def setCal(self, rAt0C = 100.0):
+		self.rRefCoeff = 100.0 / rAt0C
 		
 	def setupGPIO(self):
 		GPIO.setwarnings(False)
@@ -76,9 +80,12 @@ class max31865(object):
 
 		#one shot
 		self.writeRegister(0, 0xB2)
+		#Continuous
+		# self.writeRegister(0, 0xD2)
 
 		# conversion time is less than 100ms
 		time.sleep(.1) #give it 100ms for conversion
+		# time.sleep(10) #give it 100ms for conversion
 
 		# read all registers
 		out = self.readRegisters(0,8)
@@ -87,6 +94,7 @@ class max31865(object):
 		print "config register byte: %x" % conf_reg
 
 		[rtd_msb, rtd_lsb] = [out[1], out[2]]
+		print "RTD bytes: %02X%02X"%(rtd_msb, rtd_lsb)
 		rtd_ADC_Code = (( rtd_msb << 8 ) | rtd_lsb ) >> 1
 			
 		temp_C = self.calcPT100Temp(rtd_ADC_Code)
@@ -119,6 +127,8 @@ class max31865(object):
 		if ((status & 0x04) == 1):
 			raise FaultError("Overvoltage or Undervoltage Error") 
 		
+		return temp_C
+	
 	def writeRegister(self, regNum, dataByte):
 		GPIO.output(self.csPin, GPIO.LOW)
 		
@@ -176,7 +186,9 @@ class max31865(object):
 		# c = 0 # for 0 <= T <= 850 (degC)
 		print "RTD ADC Code: %d" % RTD_ADC_Code
 		Res_RTD = (RTD_ADC_Code * R_REF) / 32768.0 # PT100 Resistance
-		print "PT100 Resistance: %f ohms" % Res_RTD
+		print "PT100 Resistance uncalibrated: %f ohms" % Res_RTD
+		Res_RTD = (RTD_ADC_Code * R_REF * self.rRefCoeff) / 32768.0 # PT100 Resistance
+		print "PT100 Resistance calibrated: %f ohms" % Res_RTD
 		#
 		# Callendar-Van Dusen equation
 		# Res_RTD = Res0 * (1 + a*T + b*T**2 + c*(T-100)*T**3)
@@ -192,14 +204,17 @@ class max31865(object):
 		# removing numpy.roots will greatly speed things up
 		#temp_C_numpy = numpy.roots([c*Res0, -c*Res0*100, b*Res0, a*Res0, (Res0 - Res_RTD)])
 		#temp_C_numpy = abs(temp_C_numpy[-1])
-		print "Straight Line Approx. Temp: %f degC" % temp_C_line
+		#print "Straight Line Approx. Temp: %f degC" % temp_C_line
 		print "Callendar-Van Dusen Temp (degC > 0): %f degC" % temp_C
 		#print "Solving Full Callendar-Van Dusen using numpy: %f" %  temp_C_numpy
 		if (temp_C < 0): #use straight line approximation if less than 0
-			# Can also use python lib numpy to solve cubic
-			# Should never get here in this application
-			temp_C = (RTD_ADC_Code/32) - 256
-		return temp_C
+			return temp_C_line
+		else: 
+			return temp_C
+
+def c_to_f(c_temp):
+	return c_temp * 9.0/5.0 + 32.0
+
 
 class FaultError(Exception):
 	pass
@@ -212,5 +227,7 @@ if __name__ == "__main__":
 	mosiPin = 10
 	clkPin = 11
 	max = max31865.max31865(csPin,misoPin,mosiPin,clkPin)
+	max.setCal(95.104980)
 	tempC = max.readTemp()
+	print("Temp is %f degrees C (%f F)"%(tempC, c_to_f(tempC)))
 	GPIO.cleanup()
