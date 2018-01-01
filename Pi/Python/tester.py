@@ -1,3 +1,4 @@
+#!/usr/bin/python
 import max31855
 import time
 m = max31855.Max31855()
