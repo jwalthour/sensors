@@ -76,4 +76,6 @@ class MLX90614:
         """
         return MLX90614._word_to_c(self._bus.read_word_data(self._addr, MLX90614._OBJECT_1_TEMP_REGISTER))
 
-    
+if __name__ == "__main__":
+    sensor = MLX90614()
+    print("Object: %3.2f Ambient: %3.2f"%(sensor.read_object1_temp_f(), sensor.read_ambient_temp_f()))
